@@ -172,7 +172,7 @@ public final class CompositingVideoSinkProvider
 
       if (previewingVideoGraphFactory == null) {
         if (videoFrameProcessorFactory == null) {
-          videoFrameProcessorFactory = new ReflectiveDefaultVideoFrameProcessorFactory();
+          videoFrameProcessorFactory = new ReflectiveSimpleVideoFrameProcessorFactory();
         }
         previewingVideoGraphFactory =
             new ReflectivePreviewingSingleInputVideoGraphFactory(videoFrameProcessorFactory);
@@ -945,6 +945,50 @@ public final class CompositingVideoSinkProvider
       } catch (Exception e) {
         throw VideoFrameProcessingException.from(e);
       }
+    }
+  }
+
+  /**
+   * Delays reflection for loading a {@linkplain VideoFrameProcessor.Factory
+   * DefaultVideoFrameProcessor.Factory} instance.
+   */
+  private static final class ReflectiveSimpleVideoFrameProcessorFactory
+      implements VideoFrameProcessor.Factory {
+    private static final Supplier<VideoFrameProcessor.Factory>
+        VIDEO_FRAME_PROCESSOR_FACTORY_SUPPLIER =
+            Suppliers.memoize(
+                () -> {
+                  try {
+                    // LINT.IfChange
+                    Class<?> simpleVideoFrameProcessorFactoryClass =
+                        Class.forName("androidx.media3.effect.SimpleVideoFrameProcessor$Factory");
+                    Object factory =
+                        simpleVideoFrameProcessorFactoryClass.getConstructor().newInstance();
+                    return (VideoFrameProcessor.Factory) factory;
+                    // LINT.ThenChange(../../../../../../../proguard-rules.txt)
+                  } catch (Exception e) {
+                    throw new IllegalStateException(e);
+                  }
+                });
+
+    @Override
+    public VideoFrameProcessor create(
+        Context context,
+        DebugViewProvider debugViewProvider,
+        ColorInfo outputColorInfo,
+        boolean renderFramesAutomatically,
+        Executor listenerExecutor,
+        VideoFrameProcessor.Listener listener)
+        throws VideoFrameProcessingException {
+      return VIDEO_FRAME_PROCESSOR_FACTORY_SUPPLIER
+          .get()
+          .create(
+              context,
+              debugViewProvider,
+              outputColorInfo,
+              renderFramesAutomatically,
+              listenerExecutor,
+              listener);
     }
   }
 
