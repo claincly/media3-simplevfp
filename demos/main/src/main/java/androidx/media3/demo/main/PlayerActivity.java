@@ -38,9 +38,12 @@ import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.Tracks;
+import androidx.media3.common.util.Size;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.common.util.Util;
 import androidx.media3.datasource.DataSource;
+import androidx.media3.effect.SimpleGlEffect;
+import androidx.media3.effect.SimpleCopy;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.RenderersFactory;
 import androidx.media3.exoplayer.drm.DefaultDrmSessionManagerProvider;
@@ -56,6 +59,7 @@ import androidx.media3.exoplayer.source.ads.AdsLoader;
 import androidx.media3.exoplayer.util.DebugTextViewHelper;
 import androidx.media3.exoplayer.util.EventLogger;
 import androidx.media3.ui.PlayerView;
+import com.google.common.collect.ImmutableList;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -232,6 +236,7 @@ public class PlayerActivity extends AppCompatActivity
   // OnClickListener methods
 
   @Override
+  @OptIn(markerClass = UnstableApi.class)
   public void onClick(View view) {
     if (view == selectTracksButton
         && !isShowingTrackSelectionDialog
@@ -261,6 +266,7 @@ public class PlayerActivity extends AppCompatActivity
   /**
    * @return Whether initialization was successful.
    */
+  @OptIn(markerClass = UnstableApi.class)
   protected boolean initializePlayer() {
     if (player == null) {
       Intent intent = getIntent();
@@ -292,6 +298,13 @@ public class PlayerActivity extends AppCompatActivity
       player.seekTo(startItemIndex, startPosition);
     }
     player.setMediaItems(mediaItems, /* resetPosition= */ !haveStartPosition);
+
+    player.setVideoEffects(
+        ImmutableList.of(
+            (SimpleGlEffect)
+                (context, useHdr) ->
+                    new SimpleCopy(context, /* outputSize= */ new Size(2200, 1080))));
+
     player.prepare();
     updateButtonVisibility();
     return true;
