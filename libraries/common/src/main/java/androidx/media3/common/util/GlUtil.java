@@ -20,6 +20,7 @@ import static android.opengl.EGL14.EGL_NO_SURFACE;
 import static android.opengl.GLU.gluErrorString;
 import static androidx.media3.common.util.Assertions.checkArgument;
 import static androidx.media3.common.util.Assertions.checkState;
+import static androidx.media3.common.util.Util.SDK_INT;
 
 import android.content.Context;
 import android.content.pm.PackageManager;
@@ -37,6 +38,7 @@ import android.opengl.Matrix;
 import androidx.annotation.IntRange;
 import androidx.annotation.Nullable;
 import androidx.media3.common.C;
+import androidx.media3.common.GlObjectsProvider;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -167,17 +169,17 @@ public final class GlUtil {
    * <p>If {@code true}, the device supports a protected output path for DRM content when using GL.
    */
   public static boolean isProtectedContentExtensionSupported(Context context) {
-    if (Util.SDK_INT < 24) {
+    if (SDK_INT < 24) {
       return false;
     }
-    if (Util.SDK_INT < 26 && ("samsung".equals(Util.MANUFACTURER) || "XT1650".equals(Util.MODEL))) {
+    if (SDK_INT < 26 && ("samsung".equals(Util.MANUFACTURER) || "XT1650".equals(Util.MODEL))) {
       // Samsung devices running Nougat are known to be broken. See
       // https://github.com/google/ExoPlayer/issues/3373 and [Internal: b/37197802].
       // Moto Z XT1650 is also affected. See
       // https://github.com/google/ExoPlayer/issues/3215.
       return false;
     }
-    if (Util.SDK_INT < 26
+    if (SDK_INT < 26
         && !context
             .getPackageManager()
             .hasSystemFeature(PackageManager.FEATURE_VR_MODE_HIGH_PERFORMANCE)) {
@@ -229,7 +231,7 @@ public final class GlUtil {
   public static boolean isBt2020PqExtensionSupported() {
     // On API<33, the system cannot display PQ content correctly regardless of whether BT2020 PQ
     // GL extension is supported. Context: http://b/252537203#comment5.
-    return Util.SDK_INT >= 33 && isExtensionSupported(EXTENSION_COLORSPACE_BT2020_PQ);
+    return SDK_INT >= 33 && isExtensionSupported(EXTENSION_COLORSPACE_BT2020_PQ);
   }
 
   /** Returns whether {@link #EXTENSION_COLORSPACE_BT2020_HLG} is supported. */
@@ -830,6 +832,43 @@ public final class GlUtil {
     if (!expression) {
       throw new GlException(errorMessage);
     }
+  }
+
+  /** Creates an OpenGL ES 3.0 context if possible, and an OpenGL ES 2.0 context otherwise. */
+  public static EGLContext createFocusedEglContextWithFallback(
+      GlObjectsProvider glObjectsProvider, EGLDisplay eglDisplay, int[] configAttributes)
+      throws GlUtil.GlException {
+    if (SDK_INT < 29) {
+      return createFocusedEglContext(
+          glObjectsProvider, eglDisplay, /* openGlVersion= */ 2, configAttributes);
+    }
+
+    try {
+      return createFocusedEglContext(
+          glObjectsProvider, eglDisplay, /* openGlVersion= */ 3, configAttributes);
+    } catch (GlUtil.GlException e) {
+      return createFocusedEglContext(
+          glObjectsProvider, eglDisplay, /* openGlVersion= */ 2, configAttributes);
+    }
+  }
+
+  /**
+   * Creates an {@link EGLContext} and focus it using a {@linkplain
+   * GlObjectsProvider#createFocusedPlaceholderEglSurface placeholder EGL Surface}.
+   */
+  private static EGLContext createFocusedEglContext(
+      GlObjectsProvider glObjectsProvider,
+      EGLDisplay eglDisplay,
+      int openGlVersion,
+      int[] configAttributes)
+      throws GlUtil.GlException {
+    EGLContext eglContext =
+        glObjectsProvider.createEglContext(eglDisplay, openGlVersion, configAttributes);
+    // Some OpenGL ES 3.0 contexts returned from createEglContext may throw EGL_BAD_MATCH when being
+    // used to createFocusedPlaceHolderEglSurface, despite GL documentation suggesting the contexts,
+    // if successfully created, are valid. Check early whether the context is really valid.
+    glObjectsProvider.createFocusedPlaceholderEglSurface(eglContext, eglDisplay);
+    return eglContext;
   }
 
   private static EGLConfig getEglConfig(EGLDisplay eglDisplay, int[] attributes)

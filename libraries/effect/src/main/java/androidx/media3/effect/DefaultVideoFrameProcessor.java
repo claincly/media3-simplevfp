@@ -19,7 +19,7 @@ import static androidx.media3.common.util.Assertions.checkArgument;
 import static androidx.media3.common.util.Assertions.checkNotNull;
 import static androidx.media3.common.util.Assertions.checkState;
 import static androidx.media3.common.util.Assertions.checkStateNotNull;
-import static androidx.media3.common.util.Util.SDK_INT;
+import static androidx.media3.common.util.GlUtil.createFocusedEglContextWithFallback;
 import static androidx.media3.effect.DebugTraceUtil.EVENT_VFP_RECEIVE_END_OF_INPUT;
 import static androidx.media3.effect.DebugTraceUtil.EVENT_VFP_REGISTER_NEW_INPUT_STREAM;
 import static androidx.media3.effect.DebugTraceUtil.EVENT_VFP_SIGNAL_ENDED;
@@ -884,7 +884,7 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
   }
 
   /** Checks that color configuration is valid for {@link DefaultVideoFrameProcessor}. */
-  private static void checkColors(
+  /* package */ static void checkColors(
       ColorInfo inputColorInfo, ColorInfo outputColorInfo, boolean enableColorTransfers)
       throws VideoFrameProcessingException {
     if ((ColorInfo.isTransferHdr(inputColorInfo) || ColorInfo.isTransferHdr(outputColorInfo))) {
@@ -953,43 +953,6 @@ public final class DefaultVideoFrameProcessor implements VideoFrameProcessor {
         Log.e(TAG, "Error releasing GL context", e);
       }
     }
-  }
-
-  /** Creates an OpenGL ES 3.0 context if possible, and an OpenGL ES 2.0 context otherwise. */
-  private static EGLContext createFocusedEglContextWithFallback(
-      GlObjectsProvider glObjectsProvider, EGLDisplay eglDisplay, int[] configAttributes)
-      throws GlUtil.GlException {
-    if (SDK_INT < 29) {
-      return createFocusedEglContext(
-          glObjectsProvider, eglDisplay, /* openGlVersion= */ 2, configAttributes);
-    }
-
-    try {
-      return createFocusedEglContext(
-          glObjectsProvider, eglDisplay, /* openGlVersion= */ 3, configAttributes);
-    } catch (GlUtil.GlException e) {
-      return createFocusedEglContext(
-          glObjectsProvider, eglDisplay, /* openGlVersion= */ 2, configAttributes);
-    }
-  }
-
-  /**
-   * Creates an {@link EGLContext} and focus it using a {@linkplain
-   * GlObjectsProvider#createFocusedPlaceholderEglSurface placeholder EGL Surface}.
-   */
-  private static EGLContext createFocusedEglContext(
-      GlObjectsProvider glObjectsProvider,
-      EGLDisplay eglDisplay,
-      int openGlVersion,
-      int[] configAttributes)
-      throws GlUtil.GlException {
-    EGLContext eglContext =
-        glObjectsProvider.createEglContext(eglDisplay, openGlVersion, configAttributes);
-    // Some OpenGL ES 3.0 contexts returned from createEglContext may throw EGL_BAD_MATCH when being
-    // used to createFocusedPlaceHolderEglSurface, despite GL documentation suggesting the contexts,
-    // if successfully created, are valid. Check early whether the context is really valid.
-    glObjectsProvider.createFocusedPlaceholderEglSurface(eglContext, eglDisplay);
-    return eglContext;
   }
 
   private static final class InputStreamInfo {
